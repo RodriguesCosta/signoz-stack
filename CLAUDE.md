@@ -70,6 +70,13 @@ zookeeper-1 (healthy) ───────────────────�
    reclamarem de permissão, ver seção de permissões no README.
 5. **Sem magic-envs do Coolify.** Nada de `SERVICE_URL_*`, `SERVICE_REALBASE64_*`
    ou `exclude_from_hc` (essa última quebra o `docker compose` puro).
+6. **Feature-gate `NormalizeName` do collector.** A flag
+   `--feature-gates=-pkg.translator.prometheus.NormalizeName` (o `-` = desabilitar)
+   NÃO existe mais a partir da `v0.144.6`: o gate graduou pra "stable" e não pode
+   ser desabilitado → o collector aborta no boot em loop
+   (`Error: invalid argument ... feature gate ... is stable, can not be disabled`).
+   A correção é REMOVER essa linha do `command:` do `otel-collector`. Conferir
+   flags de feature-gate a cada bump do collector.
 
 ## Segredos
 
