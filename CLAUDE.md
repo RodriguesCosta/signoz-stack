@@ -51,7 +51,7 @@ zookeeper-1 (healthy) ───────────────────�
                                                         └─▶ schema-migrator-async
 ```
 
-- UI: `:8080` · OTLP HTTP: `:4318` · OTLP gRPC: `:4317`
+- UI: host `:58080` → container `:8080` · OTLP HTTP: `:4318` · OTLP gRPC: `:4317`
 
 ## Gotchas (não repetir erros passados)
 

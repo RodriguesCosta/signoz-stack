@@ -131,7 +131,7 @@ services:
       schema-migrator-sync:
         condition: service_completed_successfully
     ports:
-      - "8080:8080" # UI do SigNoz
+      - "58080:8080" # UI do SigNoz (host 58080 -> container 8080)
     command:
       - --config=/root/config/prometheus.yml
     volumes:

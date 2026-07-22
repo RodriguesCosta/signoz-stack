@@ -34,7 +34,7 @@ docker compose logs -f signoz otel-collector
 
 ## Acessar
 
-- **UI**: http://localhost:8080  (no 1º acesso você cria o usuário admin)
+- **UI**: http://localhost:58080  (no 1º acesso você cria o usuário admin)
 - **Ingestão OTLP**:
   - HTTP → `http://localhost:4318`
   - gRPC → `localhost:4317`
