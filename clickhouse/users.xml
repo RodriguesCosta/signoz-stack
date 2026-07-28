@@ -18,6 +18,15 @@
                  first_or_random - if first replica one has higher number of errors, pick a random one from replicas with minimum number of errors.
             -->
             <load_balancing>random</load_balancing>
+
+            <!-- Query profiler DESLIGADO (0 = disabled). É ele que alimenta a
+                 system.trace_log, amostrando stack traces de toda query. Com o
+                 volume de queries do SigNoz isso gerou 21 GiB / 1 bilhão de
+                 linhas em poucos dias. Só serve pra profiling manual do próprio
+                 ClickHouse; se um dia precisar, dá pra ligar por sessão com
+                 SET query_profiler_real_time_period_ns = 1000000000. -->
+            <query_profiler_real_time_period_ns>0</query_profiler_real_time_period_ns>
+            <query_profiler_cpu_time_period_ns>0</query_profiler_cpu_time_period_ns>
         </default>
 
         <!-- Profile that allows only read queries. -->

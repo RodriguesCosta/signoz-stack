@@ -72,6 +72,7 @@ services:
       - ./clickhouse/users.xml:/etc/clickhouse-server/users.xml
       - ./clickhouse/custom-function.xml:/etc/clickhouse-server/custom-function.xml
       - ./clickhouse/cluster.xml:/etc/clickhouse-server/config.d/cluster.xml
+      - ./clickhouse/system-logs.xml:/etc/clickhouse-server/config.d/system-logs.xml
     healthcheck:
       test:
         - CMD

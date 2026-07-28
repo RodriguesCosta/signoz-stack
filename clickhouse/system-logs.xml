@@ -1,0 +1,79 @@
+<?xml version="1.0"?>
+<!--
+  Retenção das tabelas de log INTERNAS do ClickHouse (system.*).
+
+  Por padrão elas têm partição mensal e NENHUM TTL, ou seja: crescem pra sempre.
+  Num deploy real a system.trace_log chegou a 21 GiB (1 bilhão de linhas) em
+  poucos dias, enquanto toda a telemetria do SigNoz somava menos de 1 GiB.
+
+  Aqui: partição diária (drop de partição é barato) + TTL curto. São dados de
+  diagnóstico do próprio banco, não têm valor histórico pra esta stack.
+-->
+<clickhouse>
+    <!-- CAUSA RAIZ do inchaço da trace_log: o profiler GLOBAL, que vem ligado
+         por padrão (10s) e amostra TODAS as threads do servidor, inclusive as
+         de background (merges etc.) — essas linhas têm query_id = ''. Medido
+         localmente: ~116k linhas em 5 min, ~33M/dia, e eram 99% do volume.
+
+         Atenção: isto é server-level. Desabilitar query_profiler_* no users.xml
+         NÃO afeta essas threads (cobre só queries de usuário, que aqui eram
+         1.6k de 118k linhas). Precisa ser aqui. -->
+    <global_profiler_real_time_period_ns>0</global_profiler_real_time_period_ns>
+    <global_profiler_cpu_time_period_ns>0</global_profiler_cpu_time_period_ns>
+
+    <trace_log>
+        <database>system</database>
+        <table>trace_log</table>
+        <partition_by>toYYYYMMDD(event_date)</partition_by>
+        <ttl>event_date + INTERVAL 2 DAY DELETE</ttl>
+        <flush_interval_milliseconds>7500</flush_interval_milliseconds>
+    </trace_log>
+
+    <part_log>
+        <database>system</database>
+        <table>part_log</table>
+        <partition_by>toYYYYMMDD(event_date)</partition_by>
+        <ttl>event_date + INTERVAL 3 DAY DELETE</ttl>
+        <flush_interval_milliseconds>7500</flush_interval_milliseconds>
+    </part_log>
+
+    <query_log>
+        <database>system</database>
+        <table>query_log</table>
+        <partition_by>toYYYYMMDD(event_date)</partition_by>
+        <ttl>event_date + INTERVAL 3 DAY DELETE</ttl>
+        <flush_interval_milliseconds>7500</flush_interval_milliseconds>
+    </query_log>
+
+    <processors_profile_log>
+        <database>system</database>
+        <table>processors_profile_log</table>
+        <partition_by>toYYYYMMDD(event_date)</partition_by>
+        <ttl>event_date + INTERVAL 2 DAY DELETE</ttl>
+        <flush_interval_milliseconds>7500</flush_interval_milliseconds>
+    </processors_profile_log>
+
+    <metric_log>
+        <database>system</database>
+        <table>metric_log</table>
+        <partition_by>toYYYYMMDD(event_date)</partition_by>
+        <ttl>event_date + INTERVAL 3 DAY DELETE</ttl>
+        <flush_interval_milliseconds>7500</flush_interval_milliseconds>
+    </metric_log>
+
+    <asynchronous_metric_log>
+        <database>system</database>
+        <table>asynchronous_metric_log</table>
+        <partition_by>toYYYYMMDD(event_date)</partition_by>
+        <ttl>event_date + INTERVAL 3 DAY DELETE</ttl>
+        <flush_interval_milliseconds>7000</flush_interval_milliseconds>
+    </asynchronous_metric_log>
+
+    <query_views_log>
+        <database>system</database>
+        <table>query_views_log</table>
+        <partition_by>toYYYYMMDD(event_date)</partition_by>
+        <ttl>event_date + INTERVAL 3 DAY DELETE</ttl>
+        <flush_interval_milliseconds>7500</flush_interval_milliseconds>
+    </query_views_log>
+</clickhouse>

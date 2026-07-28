@@ -77,6 +77,35 @@ zookeeper-1 (healthy) ───────────────────�
    (`Error: invalid argument ... feature gate ... is stable, can not be disabled`).
    A correção é REMOVER essa linha do `command:` do `otel-collector`. Conferir
    flags de feature-gate a cada bump do collector.
+7. **`system.trace_log` engole o disco.** Sintoma: `data/` cresce vários GB/dia
+   sem que a telemetria (`signoz_*`) cresça junto. Num deploy real chegou a
+   **21 GiB / 1 bilhão de linhas** enquanto todo o `signoz_*` somava < 1 GiB.
+   Causa: `global_profiler_real_time_period_ns` (server-level) vem LIGADO por
+   padrão (10s) e amostra TODAS as threads do servidor, inclusive as de
+   background — essas linhas têm `query_id = ''`. Medido: ~435 linhas/s
+   (~33M/dia) antes, ~2 linhas/s depois. Corrigido em
+   `clickhouse/system-logs.xml` (montado em `config.d/`), que também põe TTL e
+   partição diária nas tabelas `system.*` — elas vêm com partição MENSAL e
+   NENHUM TTL, ou seja, crescem pra sempre. Três pegadinhas ao aplicar:
+   - Desabilitar `query_profiler_*` no `users.xml` NÃO resolve: aquilo é
+     perfil de usuário e cobre só queries (eram 1,4% do volume). O que importa
+     é o `global_profiler_*`, que é server-level.
+   - `global_profiler_*` NÃO recarrega a quente. `docker compose up -d` não
+     basta — precisa de `docker compose restart clickhouse`.
+   - Ao mudar `partition_by`/`ttl` de uma tabela de sistema, o ClickHouse
+     RENOMEIA a antiga para `trace_log_0` etc. e cria uma nova vazia. Então
+     **truncar ANTES do restart** — senão os GB só mudam de nome. Depois,
+     dropar as `*_log_<N>` remanescentes.
+
+   Diagnóstico rápido de "quem está ocupando disco":
+   ```sql
+   SELECT database, table, formatReadableSize(sum(bytes_on_disk)), sum(rows)
+   FROM system.parts WHERE active GROUP BY database, table
+   ORDER BY sum(bytes_on_disk) DESC LIMIT 20
+   ```
+
+   Retenção da telemetria de verdade (`signoz_*`) é outra história: também não
+   vem configurada por padrão, mas se ajusta na UI em *Settings → Retention*.
 
 ## Segredos
 
