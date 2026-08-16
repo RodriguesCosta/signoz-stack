@@ -106,6 +106,23 @@ zookeeper-1 (healthy) ───────────────────�
 
    Retenção da telemetria de verdade (`signoz_*`) é outra história: também não
    vem configurada por padrão, mas se ajusta na UI em *Settings → Retention*.
+8. **`system.metric_log` crava CPU em loop infinito de merge.** Sintoma: ClickHouse
+   a 100%+ de CPU constante SEM queries e SEM merges visíveis em `system.merges`;
+   threads campeãs no `top -H` chamadas `MergeMu…`; `system.errors` com milhares
+   de `MEMORY_LIMIT_EXCEEDED`; log com `Exception is in merge_task ... table
+   system.metric_log`. Causa: a `metric_log` tem ~1.200 colunas e o merge abre um
+   write-stream (buffers de MBs) POR COLUNA → em máquina pequena (7,5 GiB) estoura
+   o limite de memória, falha e re-tenta pra sempre. Efeito colateral: o contador
+   `MergesMutationsMemoryTracking` (ver `system.metrics`) fica inflado (~6,7 GiB
+   com RSS real de 2 GiB) e satura o tracker total — aí TODA alocação de merge
+   falha na hora. TTL NÃO resolve (o problema é o merge, não a retenção).
+   Correção em `clickhouse/system-logs.xml`: `remove="1"` na `metric_log` e nas
+   demais tabelas de log pesadas (só a `query_log` fica). Ao aplicar:
+   - A config só impede a RECRIAÇÃO. Ordem certa: `docker compose restart
+     clickhouse` (zera o tracker vazado e carrega a config) e DEPOIS
+     `DROP TABLE IF EXISTS system.<tabela> SYNC` de cada uma.
+   - Usar `SYNC` no drop: sem ele, database Atomic segura os dados no `store/`
+     por 8 min (`database_atomic_delay_before_drop_table_sec`) e o `du` não cai.
 
 ## Segredos
 

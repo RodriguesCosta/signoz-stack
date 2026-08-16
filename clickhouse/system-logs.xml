@@ -1,13 +1,19 @@
 <?xml version="1.0"?>
 <!--
-  Retenção das tabelas de log INTERNAS do ClickHouse (system.*).
+  Tabelas de log INTERNAS do ClickHouse (system.*): quase todas DESABILITADAS.
 
-  Por padrão elas têm partição mensal e NENHUM TTL, ou seja: crescem pra sempre.
-  Num deploy real a system.trace_log chegou a 21 GiB (1 bilhão de linhas) em
-  poucos dias, enquanto toda a telemetria do SigNoz somava menos de 1 GiB.
+  Histórico (2 incidentes reais neste deploy):
+  1. system.trace_log chegou a 21 GiB / 1 bilhão de linhas (profiler global
+     ligado por padrão) enquanto a telemetria do SigNoz somava < 1 GiB.
+  2. system.metric_log derrubou o servidor por CPU: ela tem ~1.200 colunas
+     (uma por métrica interna) e o MERGE dela abre um stream de escrita por
+     coluna — em máquina de 7,5 GiB o merge estoura MEMORY_LIMIT_EXCEEDED e
+     re-tenta em loop infinito (6k+ falhas), cravando 100%+ de CPU pra sempre.
+     TTL não resolve isso: o problema é o merge em si, não a retenção.
 
-  Aqui: partição diária (drop de partição é barato) + TTL curto. São dados de
-  diagnóstico do próprio banco, não têm valor histórico pra esta stack.
+  Por isso: remove="1" em tudo que é pesado. São dados de diagnóstico do
+  próprio banco, sem valor pra esta stack. Só a query_log fica (leve e útil
+  pra investigar queries lentas), com partição diária + TTL curto.
 -->
 <clickhouse>
     <!-- CAUSA RAIZ do inchaço da trace_log: o profiler GLOBAL, que vem ligado
@@ -16,26 +22,21 @@
          localmente: ~116k linhas em 5 min, ~33M/dia, e eram 99% do volume.
 
          Atenção: isto é server-level. Desabilitar query_profiler_* no users.xml
-         NÃO afeta essas threads (cobre só queries de usuário, que aqui eram
-         1.6k de 118k linhas). Precisa ser aqui. -->
+         NÃO afeta essas threads (cobre só queries de usuário). Precisa ser aqui. -->
     <global_profiler_real_time_period_ns>0</global_profiler_real_time_period_ns>
     <global_profiler_cpu_time_period_ns>0</global_profiler_cpu_time_period_ns>
 
-    <trace_log>
-        <database>system</database>
-        <table>trace_log</table>
-        <partition_by>toYYYYMMDD(event_date)</partition_by>
-        <ttl>event_date + INTERVAL 2 DAY DELETE</ttl>
-        <flush_interval_milliseconds>7500</flush_interval_milliseconds>
-    </trace_log>
-
-    <part_log>
-        <database>system</database>
-        <table>part_log</table>
-        <partition_by>toYYYYMMDD(event_date)</partition_by>
-        <ttl>event_date + INTERVAL 3 DAY DELETE</ttl>
-        <flush_interval_milliseconds>7500</flush_interval_milliseconds>
-    </part_log>
+    <!-- Desabilitadas. Depois de mudar aqui: docker compose restart clickhouse
+         e DROP TABLE IF EXISTS system.<tabela> SYNC (a config só impede a
+         RECRIAÇÃO; a tabela existente continua no disco até o drop). -->
+    <trace_log remove="1"/>
+    <metric_log remove="1"/>
+    <asynchronous_metric_log remove="1"/>
+    <part_log remove="1"/>
+    <processors_profile_log remove="1"/>
+    <query_views_log remove="1"/>
+    <query_thread_log remove="1"/>
+    <latency_log remove="1"/>
 
     <query_log>
         <database>system</database>
@@ -44,36 +45,4 @@
         <ttl>event_date + INTERVAL 3 DAY DELETE</ttl>
         <flush_interval_milliseconds>7500</flush_interval_milliseconds>
     </query_log>
-
-    <processors_profile_log>
-        <database>system</database>
-        <table>processors_profile_log</table>
-        <partition_by>toYYYYMMDD(event_date)</partition_by>
-        <ttl>event_date + INTERVAL 2 DAY DELETE</ttl>
-        <flush_interval_milliseconds>7500</flush_interval_milliseconds>
-    </processors_profile_log>
-
-    <metric_log>
-        <database>system</database>
-        <table>metric_log</table>
-        <partition_by>toYYYYMMDD(event_date)</partition_by>
-        <ttl>event_date + INTERVAL 3 DAY DELETE</ttl>
-        <flush_interval_milliseconds>7500</flush_interval_milliseconds>
-    </metric_log>
-
-    <asynchronous_metric_log>
-        <database>system</database>
-        <table>asynchronous_metric_log</table>
-        <partition_by>toYYYYMMDD(event_date)</partition_by>
-        <ttl>event_date + INTERVAL 3 DAY DELETE</ttl>
-        <flush_interval_milliseconds>7000</flush_interval_milliseconds>
-    </asynchronous_metric_log>
-
-    <query_views_log>
-        <database>system</database>
-        <table>query_views_log</table>
-        <partition_by>toYYYYMMDD(event_date)</partition_by>
-        <ttl>event_date + INTERVAL 3 DAY DELETE</ttl>
-        <flush_interval_milliseconds>7500</flush_interval_milliseconds>
-    </query_views_log>
 </clickhouse>
