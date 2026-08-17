@@ -8,9 +8,9 @@ mounts), nada em volume nomeado — fácil de clonar num servidor e rodar.
 
 | Componente | Imagem |
 |---|---|
-| SigNoz | `signoz/signoz:v0.134.0` |
-| OTel Collector | `signoz/signoz-otel-collector:v0.144.6` |
-| Schema migrator | `signoz/signoz-schema-migrator:v0.144.6` |
+| SigNoz | `signoz/signoz:v0.137.1` |
+| OTel Collector | `signoz/signoz-otel-collector:v0.144.8` |
+| Schema migrator | `signoz/signoz-schema-migrator:v0.144.8` |
 | ClickHouse | `clickhouse/clickhouse-server:25.12.5` |
 | ZooKeeper | `signoz/zookeeper:3.9.3` |
 

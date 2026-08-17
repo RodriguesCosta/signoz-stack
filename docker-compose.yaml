@@ -89,7 +89,7 @@ services:
         max-file: "3"
 
   schema-migrator-sync:
-    image: signoz/signoz-schema-migrator:v0.144.6
+    image: signoz/signoz-schema-migrator:v0.144.8
     container_name: signoz-schema-migrator-sync
     restart: on-failure
     depends_on:
@@ -105,7 +105,7 @@ services:
         max-file: "3"
 
   schema-migrator-async:
-    image: signoz/signoz-schema-migrator:v0.144.6
+    image: signoz/signoz-schema-migrator:v0.144.8
     container_name: signoz-schema-migrator-async
     restart: on-failure
     depends_on:
@@ -123,7 +123,7 @@ services:
         max-file: "3"
 
   signoz:
-    image: signoz/signoz:v0.134.0
+    image: signoz/signoz:v0.137.1
     container_name: signoz
     restart: unless-stopped
     depends_on:
@@ -167,7 +167,7 @@ services:
         max-file: "3"
 
   otel-collector:
-    image: signoz/signoz-otel-collector:v0.144.6
+    image: signoz/signoz-otel-collector:v0.144.8
     container_name: signoz-otel-collector
     restart: unless-stopped
     depends_on:

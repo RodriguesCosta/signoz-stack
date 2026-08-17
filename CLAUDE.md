@@ -23,15 +23,26 @@ docker compose down               # para (mantém dados em ./data)
 docker compose pull && docker compose up -d    # atualizar imagens
 ```
 
-## Versões (jul/2026 — as mais recentes)
+## Versões (ago/2026 — as mais recentes)
 
 | Componente | Imagem |
 |---|---|
-| SigNoz | `signoz/signoz:v0.134.0` |
-| OTel Collector | `signoz/signoz-otel-collector:v0.144.6` |
-| Schema migrator | `signoz/signoz-schema-migrator:v0.144.6` |
+| SigNoz | `signoz/signoz:v0.137.1` |
+| OTel Collector | `signoz/signoz-otel-collector:v0.144.8` |
+| Schema migrator | `signoz/signoz-schema-migrator:v0.144.8` |
 | ClickHouse | `clickhouse/clickhouse-server:25.12.5` |
 | ZooKeeper | `signoz/zookeeper:3.9.3` |
+
+**NÃO subir o ClickHouse por conta própria.** O `25.12.5` não é "a última" — é a
+versão que o SigNoz exige e testa. Duas âncoras: (a) desde o app `v0.131` o
+migrator usa as settings `object_serialization_version` e
+`object_shared_data_serialization_version`, que só existem a partir da `25.12.5`
+(pareamento errado → `Unknown setting` e o migrator falha); (b) o chart oficial
+da própria `v0.137.1` (`SigNoz/charts`, `appVersion: v0.137.1`) continua fixando
+`clickhouse/clickhouse-server:25.12.5`, com o aviso "SigNoz is not always tested
+with the latest version of ClickHouse". Já existem `26.x` no Docker Hub —
+ignorar. Mesma lógica vale pro ZooKeeper. Ao bumpar, conferir o `values.yaml`
+do chart na tag correspondente: é a matriz de compatibilidade de verdade.
 
 **Esquema de versões (importante):** o `signoz/signoz` segue as tags do git do
 repo SigNoz. Já `signoz-otel-collector` e `signoz-schema-migrator` têm
@@ -123,6 +134,24 @@ zookeeper-1 (healthy) ───────────────────�
      `DROP TABLE IF EXISTS system.<tabela> SYNC` de cada uma.
    - Usar `SYNC` no drop: sem ele, database Atomic segura os dados no `store/`
      por 8 min (`database_atomic_delay_before_drop_table_sec`) e o `du` não cai.
+9. **O app `v0.135.0` converte os dashboards de forma DESTRUTIVA.** Os dashboards
+   migram pro schema Perseus/v2 in-place no boot do `signoz`, no metastore sqlite
+   (`./data/sqlite/signoz.db`) — **não há rollback**. Logo, antes de bumpar de uma
+   versão < `v0.135.0`: parar a stack (`docker compose down`, pra o WAL do sqlite
+   fazer checkpoint e o backup sair consistente) e copiar `data/sqlite/signoz.db*`.
+   Efeitos colaterais: as rotas `/api/v1/dashboards*` passam a responder
+   `501 Not Implemented` (migrar scripts/Terraform pra `/api/v2/`), e dashboard que
+   a conversão não consiga migrar fica marcado como **Legacy** e NÃO abre mais na
+   UI. Conferir o resultado no log do `signoz` — a linha a procurar é
+   `converted dashboards from v1 to v2` com `"failed":0`:
+   ```bash
+   docker compose logs signoz | grep -E "converted dashboards|legacy"
+   ```
+   Dois erros no log do `signoz` que são benignos e NÃO indicam falha de upgrade:
+   `failed to get active license` (é a OSS, sem licença enterprise) e
+   `Failed to create directory for logging active queries` (query logger do
+   Prometheus embutido). No collector, idem: `settings.Capabilities is deprecated`
+   sai com `level=error` mas vem da lib opamp-go e é inofensivo.
 
 ## Segredos
 
@@ -139,7 +168,19 @@ conferir se esses configs seguem compatíveis com as versões novas.
 
 ## Ao atualizar versões
 
-1. Editar as tags em `docker-compose.yaml` (manter collector == migrator).
-2. `docker compose config` pra validar.
-3. Rodar e acompanhar `schema-migrator-sync` até `exit 0`.
-4. Atualizar a tabela de versões aqui e no `README.md`.
+1. Conferir os release notes do app entre a versão atual e a nova, procurando
+   breaking change / "upgrade guide" (`gh release view <tag> --repo SigNoz/signoz`).
+2. Confirmar a matriz de compatibilidade no chart oficial da tag de destino —
+   é ele que diz a versão certa de ClickHouse e ZooKeeper, não o Docker Hub:
+   `curl -s https://raw.githubusercontent.com/SigNoz/charts/main/charts/signoz/values.yaml | grep -nE "tag:"`
+3. Se vier de < `v0.135.0`: `docker compose down` + backup de `data/sqlite/signoz.db*`
+   (ver gotcha 9 — a conversão de dashboards não tem volta).
+4. Editar as tags em `docker-compose.yaml` (manter collector == migrator).
+5. `docker compose config` pra validar.
+6. `docker compose pull && docker compose up -d`.
+7. Acompanhar `schema-migrator-sync` **e** `-async` até `exit 0`
+   (`docker inspect -f '{{.State.ExitCode}}' signoz-schema-migrator-sync`).
+8. Validar: `curl -s localhost:58080/api/v1/version` (confere a tag e
+   `setupCompleted:true`), UI em `:58080`, OTLP em `:4318`, e que só a
+   `query_log` existe em `system` (senão o gotcha 8 volta).
+9. Atualizar a tabela de versões aqui e no `README.md`.
